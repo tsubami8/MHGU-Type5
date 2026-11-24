@@ -1,0 +1,13 @@
+// index, instruction address, register, options byte, comparison value
+BOW_OPTION_SITE(0,  0x013b1a30, 1, 0x6c, 1)
+BOW_OPTION_SITE(1,  0x013b1dec, 0, 0x6c, 1)
+BOW_OPTION_SITE(2,  0x013b2960, 1, 0x6d, 0)
+BOW_OPTION_SITE(3,  0x013b3ea4, 0, 0x6c, 1)
+BOW_OPTION_SITE(4,  0x013b3edc, 0, 0x6c, 1)
+BOW_OPTION_SITE(5,  0x013b4684, 0, 0x6c, 1)
+BOW_OPTION_SITE(6,  0x013b6da8, 0, 0x6c, 1)
+BOW_OPTION_SITE(7,  0x013b77b4, 0, 0x6c, 1)
+BOW_OPTION_SITE(8,  0x013b88a0, 0, 0x6c, 1)
+BOW_OPTION_SITE(9,  0x013b9ab0, 2, 0x6d, 0)
+BOW_OPTION_SITE(10, 0x013b9af4, 0, 0x6d, 0)
+BOW_OPTION_SITE(11, 0x013b9b60, 0, 0x6d, 0)
