@@ -40,6 +40,27 @@ jobs:
           cd ..
           unzip -l "MHGU-Type5-${{ github.ref_name }}.zip"
 
+      - name: Sync README version
+        if: startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        run: |
+          python tools/sync_version.py "$GITHUB_REF_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- README.md; then
+            echo "README 版本号已是 $GITHUB_REF_NAME，跳过提交"
+            exit 0
+          fi
+          git add README.md
+          git commit -m "docs: README 版本号同步到 ${GITHUB_REF_NAME}"
+          git fetch origin main
+          if ! git rebase origin/main; then
+            echo "::warning::rebase 冲突，放弃本次 README 同步（不影响发版）"
+            git rebase --abort
+            exit 0
+          fi
+          git push origin HEAD:main
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:

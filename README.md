@@ -2,6 +2,10 @@
 
 适用版本为 **MHGU 1.4.0 + MHGU Recomp**。验证使用 Recomp 0.18.1 和 Build ID `FB08F1D20FD1204FE7070672777F869B`。压缩包包含 Forge 插件和构建源代码。
 
+## 下载
+
+从 [Releases](https://github.com/tsubami8/MHGU-Type5/releases) 下载 `MHGU-Type5-v1.0.0.zip`，解压后把 `MHGU Type 5 Prototype` 文件夹放进 Recomp 的 `mods` 目录。源码在本仓库 `source/`。
+
 ## 安装与启用
 
 1. 退出 Recomp。用压缩包中的 `MHGU Type 5 Prototype` 文件夹替换旧版同名文件夹，或将它放进 Recomp 的 `mods` 文件夹。正式版沿用旧文件夹名，已有的加载顺序可以继续使用。
