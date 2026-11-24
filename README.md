@@ -73,3 +73,11 @@ python build.py --zig zig --output type5.nro
 ```
 
 `controls_test.c` 可以与 `controls.c` 链接为宿主测试程序。测试入口 `type5_test` 返回零表示通过，非零表示失败断言的行号。
+
+## 自动化构建
+
+`.github/workflows/build.yml` 在推送 `v*` 标签时自动用 clang + ld.lld 构建，并打包成可直接放进 `mods` 的压缩包挂到对应 Release；也可以在 Actions 页面手动 Run workflow（只构建、产出 Artifact，不动 Release）。
+
+## 许可证
+
+[MIT](LICENSE)
