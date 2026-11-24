@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install clang and lld
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld
+          clang --version
+          ld.lld --version
+
+      - name: Build plugin
+        run: |
+          python source/build.py --output build/type5.nro
+
+      - name: Package for mods folder
+        run: |
+          mkdir -p "package/MHGU Type 5 Prototype/romfs/nativeNX/plugins"
+          cp "build/type5.nro" "package/MHGU Type 5 Prototype/romfs/nativeNX/plugins/type5.nro"
+          cd package
+          zip -9 -r "../MHGU-Type5-${{ github.ref_name }}.zip" "MHGU Type 5 Prototype"
+          cd ..
+          unzip -l "MHGU-Type5-${{ github.ref_name }}.zip"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MHGU-Type5-${{ github.ref_name }}
+          path: MHGU-Type5-*.zip
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "MHGU-Type5-${{ github.ref_name }}.zip" --clobber
