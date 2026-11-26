@@ -1,5 +1,4 @@
 # MHGU 操作类型 5 v1.2.0
-
 适用版本为 **MHGU 1.4.0 + MHGU Recomp**。验证使用 Recomp 0.18.1 和 Build ID `FB08F1D20FD1204FE7070672777F869B`。压缩包包含 Forge 插件和构建源代码。
 
 ## 下载
