@@ -35,15 +35,12 @@ enum {
     PLAYER_SLOTS = 0x1c, LOCAL_SLOT = 0x30, AREA_TYPE = 0x4c,
     EQUIPMENT = 0x13c4, WEAPON = 0x14c, DRAWN = 0x114c, HP = 0x13d6, ACTION_GROUP = 0x2506,
     ACTION_NUMBER = 0x250a, MOVE_TABLE = 0x24ac,
-    GREAT_SWORD = 0, SWORD_AND_SHIELD = 1, HAMMER = 2, LANCE = 3, HEAVY_BOWGUN = 4,
-    LIGHT_BOWGUN = 6, LONG_SWORD = 7, SWITCH_AXE = 8, GUNLANCE = 9, BOW = 10,
-    DUAL_BLADES = 11, HUNTING_HORN = 12, INSECT_GLAIVE = 13, CHARGE_BLADE = 14,
+
 };
 
 typedef uint32_t (*PadTranslate)(uintptr_t, uint32_t);
 typedef void (*HuntUpdate)(uintptr_t);
 
-EXPORT volatile uint32_t type5_debug_enable;
 static uintptr_t text;
 static PadTranslate original_pad_translate;
 static HuntUpdate original_hunt_update;
@@ -88,6 +85,24 @@ static unsigned byte(uintptr_t address) { return *(const volatile uint8_t *)addr
 static void set_byte(uintptr_t address, unsigned value) { *(volatile uint8_t *)address = value; }
 static void set_half(uintptr_t address, unsigned value) { *(volatile uint16_t *)address = value; }
 
+// The Switch build serializes this unused 3DS option per hunter. Reserve its
+// high bit so the original control preset and the option's low bits stay valid.
+enum { LEGACY_3DS_OPTION = 0x73, TYPE5_SAVE_BIT = 0x80 };
+
+static bool saved_type5(void)
+{
+    const uintptr_t control = word(text + GAME_CONTROL);
+    return control && (byte(control + LEGACY_3DS_OPTION) & TYPE5_SAVE_BIT);
+}
+
+static void set_saved_type5(bool enabled)
+{
+    const uintptr_t control = word(text + GAME_CONTROL);
+    if (!control) return;
+    const unsigned legacy = byte(control + LEGACY_3DS_OPTION) & ~TYPE5_SAVE_BIT;
+    set_byte(control + LEGACY_3DS_OPTION, legacy | (enabled ? TYPE5_SAVE_BIT : 0));
+}
+
 // Recomp's Forge can chain an existing LDR PC entry hook. The next two
 // instructions still identify the underlying function when its entry is hooked.
 static bool chainable_entry(uintptr_t address, uint32_t first, uint32_t second,
@@ -103,7 +118,7 @@ static bool chainable_entry(uintptr_t address, uint32_t first, uint32_t second,
 static bool type5_selected(void)
 {
     const uintptr_t options = word(text + OPTIONS);
-    return shoulder_lock_ready && type5_debug_enable && options && !byte(options + OPT_CONTROL_TYPE);
+    return shoulder_lock_ready && saved_type5() && options && !byte(options + OPT_CONTROL_TYPE);
 }
 
 static void refresh_effective_options(bool selected)
@@ -444,7 +459,7 @@ static unsigned notes_update(uintptr_t menu)
             const unsigned current = type5_selected() ? NOTES_TYPE5 : byte(options + OPT_CONTROL_TYPE);
             if (choice != current) {
                 const unsigned base = choice == NOTES_TYPE5 ? 0 : choice;
-                type5_debug_enable = choice == NOTES_TYPE5;
+                set_saved_type5(choice == NOTES_TYPE5);
                 set_byte(options + OPT_CONTROL_TYPE, base);
                 refresh_effective_options(type5_selected());
                 set_byte(notes_list + NOTES_ACTIVE_TYPE, base);
@@ -500,7 +515,7 @@ static unsigned get_option(uintptr_t menu, unsigned page, unsigned row)
 static void set_option(uintptr_t menu, unsigned page, unsigned row, uintptr_t descriptor, unsigned value)
 {
     if (native_menu_ready && controls_row(page, row) && value <= 4) {
-        type5_debug_enable = value == 4;
+        set_saved_type5(value == 4);
         // Only the UI sees 4. Game code and saves keep a valid base preset.
         original_set_option(menu, page, row, descriptor, value == 4 ? 0 : value);
         refresh_effective_options(type5_selected());
@@ -729,7 +744,7 @@ static uint32_t translate_gameplay_pad(uintptr_t view, uint32_t native)
     static unsigned observed_preset, observed_weapon = 0xff;
     static unsigned observed_group, observed_action;
     if (preset != observed_preset || weapon != observed_weapon ||
-        (type5_debug_enable && (group != observed_group || act != observed_action))) {
+        (selected && (group != observed_group || act != observed_action))) {
         forge_log(1, "[type5] native preset=%u weapon=%u action=%x:%u drawn=%u table=%u",
                   preset, weapon, group, act, (unsigned)drawn,
                   player ? word(player + MOVE_TABLE) : 0);
@@ -740,31 +755,8 @@ static uint32_t translate_gameplay_pad(uintptr_t view, uint32_t native)
     }
 
     enum Type5Context context = CTX_NATIVE;
-    if (selected && hunt_age <= 2 && !byte(options + OPT_STICK_SWAP) &&
-        (group == 1 || group == 2 || group == 0x10 || group == 0x20 || group == 0x8010)) {
-        switch (weapon) {
-        case GREAT_SWORD:
-        case SWORD_AND_SHIELD:
-        case HAMMER:
-        case LANCE:
-        case LONG_SWORD:
-        case SWITCH_AXE:
-        case GUNLANCE:
-        case DUAL_BLADES:
-        case HUNTING_HORN:
-        case INSECT_GLAIVE:
-        case CHARGE_BLADE:
-            context = drawn ? CTX_MELEE_DRAWN : CTX_MELEE_SHEATHED;
-            break;
-        case HEAVY_BOWGUN:
-        case LIGHT_BOWGUN:
-            context = drawn ? CTX_BOWGUN_DRAWN : CTX_BOWGUN_SHEATHED;
-            break;
-        case BOW:
-            if (bow_options_ready)
-                context = drawn ? CTX_BOW_DRAWN : CTX_BOW_SHEATHED;
-            break;
-        }
+    if (selected && hunt_age <= 2 && !byte(options + OPT_STICK_SWAP)) {
+        context = type5_weapon_context(weapon, drawn, bow_options_ready, group, act);
     }
 
     // Native Y can also sheathe the bow from these two drawn weapon states.
@@ -809,9 +801,9 @@ EXPORT void forge_onImGuiRender(void)
                       "使用操作类型 1、弓操作类型 1 和标准摇杆设置。", 0);
     igTextUnformatted("使用标准摇杆设置。启用时锁定肩键交换。", 0);
     if (target_camera_ready) igTextUnformatted("L3 缩放地图，R3 选择大型怪物，L 操作目标视角。", 0);
-    bool enabled = type5_debug_enable != 0;
+    bool enabled = saved_type5();
     if (igCheckbox("启用类型 5###type5_enable", &enabled)) {
-        type5_debug_enable = enabled;
+        set_saved_type5(enabled);
         refresh_effective_options(type5_selected());
     }
 }
@@ -820,7 +812,7 @@ EXPORT void forge_onLoad(struct PluginInfo *info)
 {
     const char name[] = "Type 5 Controls (MHGU 1.4.0)";
     info->major = 1;
-    info->minor = 0;
+    info->minor = 2;
     info->patch = 0;
     for (unsigned i = 0; i < sizeof(name); ++i) info->name[i] = name[i];
 }
@@ -875,6 +867,5 @@ EXPORT void forge_onInit(void)
               native_menu_ready ? "ready" : "unavailable");
     forge_log(target_camera_ready ? 1 : 2, "[type5] native R3 target camera and HUD %s",
               target_camera_ready ? "ready" : "unavailable");
-    forge_log(1, "[type5] GU 1.4.0 hooks ready; experimental input flag=%08x (off)",
-              (unsigned)(uintptr_t)&type5_debug_enable);
+    forge_log(1, "[type5] GU 1.4.0 hooks ready");
 }

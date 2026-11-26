@@ -14,7 +14,7 @@ enum Type5Button {
 enum Type5Context {
     CTX_NATIVE, CTX_MELEE_SHEATHED, CTX_MELEE_DRAWN,
     CTX_BOWGUN_SHEATHED, CTX_BOWGUN_DRAWN, CTX_BOW_SHEATHED, CTX_BOW_DRAWN,
-    CTX_MOUNT, CTX_BALLISTA,
+    CTX_MOUNT, CTX_BALLISTA, CTX_FIELD_RECOVERY, CTX_DRINK, CTX_AIR_SHEATHED,
 };
 
 typedef struct {
@@ -22,8 +22,11 @@ typedef struct {
     enum Type5Context previous_context;
     uint32_t blocked;
     bool sheathe_requested;
+    bool draw_after_drink;
 } Type5State;
 
+enum Type5Context type5_weapon_context(unsigned weapon, bool drawn, bool bow_ready,
+                                       unsigned group, unsigned action);
 uint32_t type5_map(Type5State *state, enum Type5Context context, uint32_t native,
                    bool accepts_sheathe);
 
